@@ -1,21 +1,41 @@
 ﻿using UnityEngine;
 using Trees;
 using System;
+using System.Collections;
+
+public class TrafficLightObserver
+{
+    public TrafficLight light;
+    public float gap;
+    public float timeObserved;
+
+    public TrafficLightObserver(TrafficLight light)
+    {
+        this.light = light;
+        gap = 0;
+        timeObserved = 0;
+    }
+
+    public string getCurrentState()
+    {
+        return light.currentState;
+    }
+}
 
 public class Data
 {
     public Car leader;
-    public Car follower;
+    public Car driver;
     public float gap;
-    public TrafficLight light;
+    public TrafficLightObserver light;
     public float speed_limit;
 
-    public Data(Car leader, Car follower)
+    public Data(Car leader, Car driver)
     {
         this.leader = leader;
-        this.follower = follower;
+        this.driver = driver;
         if (leader != null)
-            gap = Vector3.Magnitude(leader.transform.position - follower.transform.position) - follower.transform.localScale.z;
+            gap = Vector3.Magnitude(leader.transform.position - driver.transform.position) - driver.transform.localScale.z;
         else
             gap = 0;
         light = null;
@@ -25,7 +45,6 @@ public class Data
 
 public class Car : MonoBehaviour
 {
-    public bool isControllable;
     public bool logging;
     public int id;
 
@@ -44,51 +63,49 @@ public class Car : MonoBehaviour
     public float reaction_delay;
     public float b; // strength of noise
     public float gap_desired;
-    public float gap_light_safe; // distance where driver can safely stop for traffic light
-    public float stop_gap;
+    public float stop_gap; // preferred minimum distance from other cars
     public float intersection_width;
     public float reaction_distance;
+    public float stoppable_distance; // minimum distance required to stop
 
     [SerializeField]
-    public TreeGraph decisionTree;
     public TreeGraph behaviorTree;
-    private bool isFollower;
+    public bool isFollower;
+    public bool lightDetected; 
     public bool carBlocking; // check if there is a car travelling the opposite axis blocking the road
+    public bool isInching; // check if car is moving forward to close gap with stationary object
     private Data data;
 
     public Vector3 destination;
     public bool reachedDestination;
 
-    public Car()
+    public void Start()
     {
-        isControllable = false;
         logging = false;
         id = 0;
 
         velocity = 25;
         velocity_max = 35;
-        velocity_inching = 5;
-        velocity_yellow = 10; 
+        velocity_inching = 2;
+        velocity_yellow = 10;
         acceleration_max = 3;
         deceleration_normal = 3.05f;
         deceleration_max = 6.04f;
         t_p = 1.2f;
         T = 3;
         reaction_delay = 1;
-        b = 0.2f; 
-        gap_light_safe = 20; 
+        b = 0.2f;
+        stoppable_distance = 0;
         stop_gap = 5;
         intersection_width = 20;
         reaction_distance = 100;
 
         isFollower = false;
+        lightDetected = false;
         carBlocking = false;
-        
-        reachedDestination = false;
-    }
+        isInching = false;
 
-    public void Start()
-    {
+        reachedDestination = false;
         Console.Clear();
     }
 
@@ -101,13 +118,14 @@ public class Car : MonoBehaviour
         // create data object
         data = new Data(null, this);
 
-        // update following distance
+        // update reaction distance
         reaction_distance = Math.Max(100, (float)(0.5 * velocity * ((velocity / deceleration_normal) + reaction_delay)));
 
-        // update traffic light stopping distance
-        gap_light_safe = (float)Math.Pow(velocity, 2) / (2 * deceleration_max);
+        // update stoppable distance
+        stoppable_distance = (float)Math.Pow(velocity, 2) / (2 * deceleration_max);
 
-        // reset carBlocking
+        // reset booleans
+        lightDetected = false;
         carBlocking = false;
 
         // reset acceleration
@@ -117,38 +135,45 @@ public class Car : MonoBehaviour
         Collider[] hitColliders = Physics.OverlapSphere(transform.position, reaction_distance);
         for (int i = 0; i < hitColliders.Length; i++)
         {
+            GameObject detectedObject = hitColliders[i].gameObject;
             Vector3 forward = transform.forward;
             Vector3 left = Quaternion.AngleAxis(-90, Vector3.up) * forward;
             Vector3 right = Quaternion.AngleAxis(90, Vector3.up) * forward;
-            Vector3 currentAxis = Vector3.Scale(forward, forward);
-            Vector3 oppositeAxis = Vector3.Scale(left, left);
 
             Vector3 hitPosition = hitColliders[i].transform.position;
             Vector3 hitVector = hitPosition - transform.position;
             Vector3 hitForward = hitColliders[i].transform.forward;
 
-            float gap = Vector3.Magnitude(Vector3.Scale(hitVector, currentAxis) - (transform.localScale.z / 2) * forward);
-            if (Vector3.Dot(hitVector, forward) > 0) {// object in front of car
+            float gap = Math.Abs(Vector3.Dot(hitVector, forward)) - (transform.localScale.z / 2); // subtract by transform.localScale.z / 2 to account for front half of car, since the position of gameObjects are centered
+            if (Vector3.Dot(hitVector, forward) > 0) {// only want objects in front of car
                 // traffic light
-                if(hitColliders[i].tag == "Light" 
+                if (hitColliders[i].tag == "Light"
                     && hitForward == -forward // traffic light facing opposite direction as front of car
-                    && gap > intersection_width) // car has not passed stopping line 
+                    && gap > intersection_width) // car has not passed stopping line for intersection
                 {
-                    data.light = hitColliders[i].gameObject.GetComponent<TrafficLight>();
+                    TrafficLight detectedLight = detectedObject.GetComponent<TrafficLight>();
+
+                    data.light = new TrafficLightObserver(detectedLight);
+
                     data.light.gap = gap - intersection_width;
+
+                    lightDetected = true;
                 }
-                // car at intersection
-                else if (hitColliders[i].tag == "Car" 
-                    && (Math.Abs(Vector3.Dot(hitForward, oppositeAxis)) == 1) // detected car travelling in opposite axis as car
-                    && (gap < 20
-                        && ((Vector3.Magnitude(Vector3.Scale(hitVector, oppositeAxis) - (transform.localScale.z / 2) * left) < 15 
-                            && hitForward == right 
-                            && Vector3.Dot(hitVector, left) <= 0) 
-                            || (Vector3.Magnitude(Vector3.Scale(hitVector, oppositeAxis) - (transform.localScale.z / 2) * right) < 5 
-                            && hitForward == left
-                            && Vector3.Dot(hitVector, right) >= 0)))) // detected car is in the middle of the intersection
-                {
-                    carBlocking = true;
+                // check for cars running red light
+                else if (hitColliders[i].tag == "Car"
+                    && Vector3.Dot(hitForward, forward) < 1E-5 // detected car travelling in opposite axis as car
+                    && gap < 20) {
+                    Car detectedCar = detectedObject.GetComponent<Car>();
+                    if ((hitForward == right // car going right
+                         && Vector3.Dot(hitVector, left) >= 0 // left side of current car
+                         && detectedCar.stoppable_distance >= Vector3.Dot(hitVector, left) - transform.localScale.z / 2 - transform.localScale.x / 2) // car cannot stop before closing axial distance
+                        ||
+                        (hitForward == left // car going left
+                         && Vector3.Dot(hitVector, right) >= 0 // right side of current car
+                         && detectedCar.stoppable_distance >= Vector3.Dot(hitVector, right) - transform.localScale.z / 2 - transform.localScale.x / 2))
+                    {
+                        carBlocking = true;
+                    }
                 }
             }
         }
@@ -160,21 +185,21 @@ public class Car : MonoBehaviour
             && carHit.collider != transform.GetComponent<Collider>() // ignore own hitbox
             && carHit.collider.transform.forward == transform.forward) // object detected facing same direction as front of car
         {
-            gameObject.GetComponent<MeshRenderer>().material.color = Color.blue;
-            isFollower = true;
             Car leader = carHit.collider.gameObject.GetComponent<Car>();
             float gap = Vector3.Magnitude(leader.transform.position - transform.position) - transform.localScale.z;
             
             if (data.light != null
-                && data.light.currentState == "RED"
+                && data.light.getCurrentState() == "RED"
                 && (data.light.gap < gap)) // check if red light separates follower and leader
             {
                 gameObject.GetComponent<MeshRenderer>().material.color = Color.red;
-                data.leader = null;
                 isFollower = false;
+                data.leader = null;
             }
             else
             {
+                gameObject.GetComponent<MeshRenderer>().material.color = Color.blue;
+                isFollower = true;
                 data.leader = leader;
                 data.gap = gap;
             }
@@ -186,72 +211,42 @@ public class Car : MonoBehaviour
             isFollower = false;
         }
 
+        // follower behavior
+        if (isFollower)
+        {
+            // calculate desired gap
+            gap_desired = Math.Max(stop_gap, velocity * t_p);
+
+            // calculate safe velocity
+            velocity_safe = data.leader.velocity + (data.gap - data.leader.velocity * reaction_delay) / (reaction_delay + (data.leader.velocity + data.driver.velocity) / (2 * data.driver.deceleration_max));
+
+            // calculate desired velocity
+            velocity_desired = Math.Min(data.driver.velocity_max, Math.Min(data.driver.velocity + data.driver.acceleration, velocity_safe));
+        }
 
         // run behavior tree
         if (behaviorTree != null && data != null)
         {
             behaviorTree.Exec(data);
         }
-        float temp = acceleration; // used to determine max acceleration from behavior or decision tree
 
-        // follower behavior
-        if (isFollower)
+        if (logging)
         {
-            // calculate desired gap
-
-            gap_desired = Math.Max(stop_gap, velocity * t_p);
-
-            // calculate safe velocity
-            velocity_safe = data.leader.velocity + (data.gap - data.leader.velocity * reaction_delay) / (reaction_delay + (data.leader.velocity + data.follower.velocity) / (2 * data.follower.deceleration_max));
-
-            // calculate desired velocity
-            velocity_desired = Math.Min(data.follower.velocity_max, Math.Min(data.follower.velocity + data.follower.acceleration, velocity_safe));
-
-            if (logging)
-            {
-                //Debug.Log("leader id: " + data.leader.id);
-                //Debug.Log("velocity: " + velocity + ", leader velocity: " + data.leader.velocity + ", velocity desired: " + velocity_desired);
-                //Debug.Log("acceleration: " + acceleration);
-                //Debug.Log("gap: " + data.gap + ", desired gap: " + gap_desired + ", stop gap: " + stop_gap);
-                if (data.light != null)
-                {
-                    //Debug.Log("light distance: " + data.light.gap);
-                }
-                //Debug.Log("detection distance: " + 0.5 * velocity * ((velocity / -acceleration) + reaction_delay));
-                //Debug.Log("delta time: " + Time.fixedDeltaTime + ", velocity change: " + acceleration * Time.fixedDeltaTime);
-                //Debug.Log("reaction distance: " + reaction_distance);
-                //Debug.Break();
-            }
-
-            // run decision tree
-            if (decisionTree != null && data != null)
-            {
-                decisionTree.Exec(data);
-            }
-        }
-
-        // take keyboard input
-        else
-        {
-            if (isControllable)
-            {
-                if (Input.GetKey(KeyCode.UpArrow))
-                {
-                    if (velocity <= 12.19)
-                        acceleration = 1.1f;
-                    else
-                        acceleration = 0.37f;
-                    velocity += acceleration * Time.fixedDeltaTime;
-                }
-                else if (Input.GetKey(KeyCode.DownArrow)) {
-                    velocity -= deceleration_normal * Time.fixedDeltaTime;
-                }
-            }
+            //Debug.Log("leader id: " + data.leader.id);
+            //Debug.Log("velocity: " + velocity + ", leader velocity: " + data.leader.velocity + ", velocity desired: " + velocity_desired + ", velocity safe: " + velocity_safe);
+            //Debug.Log("acceleration: " + acceleration);
+            Debug.Log("gap: " + data.gap + ", desired gap: " + gap_desired + ", stoppable distance: " + stoppable_distance);
+            //if (data.light != null)
+            //{
+            //    Debug.Log("light distance: " + data.light.gap);
+            //}
+            //Debug.Log("detection distance: " + 0.5 * velocity * ((velocity / -acceleration) + reaction_delay));
+            //Debug.Log("delta time: " + Time.fixedDeltaTime + ", velocity change: " + acceleration * Time.fixedDeltaTime);
+            //Debug.Log("reaction distance: " + reaction_distance);
+            //Debug.Break();
         }
 
         // update velocity
-        if (temp < 0 || acceleration < 0)
-            acceleration = Math.Min(temp, acceleration); // determine max deceleration between behavior and decision tree
         velocity += acceleration * Time.fixedDeltaTime;
 
         // prevent going backwards

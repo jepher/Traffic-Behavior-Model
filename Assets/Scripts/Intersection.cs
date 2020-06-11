@@ -4,18 +4,24 @@ using UnityEngine;
 
 public class Intersection : MonoBehaviour
 {
-    public float timer = 60;
-    public GameObject Road;
-    public GameObject cars;
-    public GameObject[] lightsObject1 = new GameObject[2];
-    public GameObject[] lightsObject2 = new GameObject[2];
-    TrafficLight[] lights1;
-    TrafficLight[] lights2;
-    int lights1State = 1; // which set of lights go green first
-    int lights2State = 0;
-    // Use this for initialization
+    public float timer;
+    public GameObject[] lightsObject1;
+    public GameObject[] lightsObject2;
+    private TrafficLight[] lights1;
+    private TrafficLight[] lights2;
+    private int lights1State; // which set of lights go green first
+    private int lights2State;
     void Start()
     {
+        timer = 60;
+        lights1State = 1;
+        lights2State = 0;
+        lightsObject1 = new GameObject[2];
+        lightsObject1[0] = transform.GetChild(0).gameObject;
+        lightsObject1[1] = transform.GetChild(1).gameObject;
+        lightsObject2 = new GameObject[2];
+        lightsObject2[0] = transform.GetChild(2).gameObject;
+        lightsObject2[1] = transform.GetChild(3).gameObject;
         lights1 = new TrafficLight[2];
         lights2 = new TrafficLight[2];
         for (int i = 0; i < lightsObject1.Length; i++)
@@ -24,8 +30,6 @@ public class Intersection : MonoBehaviour
             lights2[i] = lightsObject2[i].GetComponent<TrafficLight>();
         }
     }
-
-    // Update is called once per frame
     void Update()
     {
         timer -= Time.deltaTime;

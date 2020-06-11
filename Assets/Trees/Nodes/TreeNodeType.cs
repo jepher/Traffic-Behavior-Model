@@ -5,6 +5,8 @@
     Decorator,
     Selector,
     Sequencer,
+    Inverter,
+    Succeeder,
     Debug = 99999,
 }
 

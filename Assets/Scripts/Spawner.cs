@@ -6,10 +6,10 @@ using UnityEngine;
 public class Spawner : MonoBehaviour
 {
         private GameObject Car;
-        private GameObject road;
-        public Vector3 spawnPoint;
-        public Vector3 destination;
-        private int direction;
+        private Transform road;
+        private Vector3 spawnPoint;
+        private Vector3 destination;
+        private int direction; // 0: left to right, 1: right to left
         private Car mainCar;
         private GameObject parent;
         private GameObject[] cars;
@@ -20,13 +20,21 @@ public class Spawner : MonoBehaviour
         private float maxSpawnDelay;
         private float spawnDelay;
 
-        public Spawner(GameObject Car, GameObject road, float minSpawnDelay, float maxSpawnDelay, int maxCars, Vector3 spawnPoint, Vector3 destination, int direction, Car mainCar, GameObject parent)
+        public Spawner(GameObject Car, float minSpawnDelay, float maxSpawnDelay, int maxCars, Transform road, int direction, Car mainCar, GameObject parent)
         {
             this.Car = Car;
-            this.road = road;
-            this.spawnPoint = spawnPoint;
-            this.destination = destination;
             this.direction = direction;
+            Vector3 roadDimensions = road.gameObject.GetComponent<Renderer>().bounds.size;
+            if (direction == 0) // left to right
+            {
+                spawnPoint = road.position + new Vector3(-roadDimensions.x / 2, 0, -roadDimensions.z / 4);
+                destination = road.position + new Vector3(roadDimensions.x / 2, 0, -roadDimensions.z / 4);
+            }
+            else // right to left
+            {
+                spawnPoint = road.position + new Vector3(roadDimensions.x / 2, 0, roadDimensions.z / 4);
+                destination = road.position + new Vector3(-roadDimensions.x / 2, 0, roadDimensions.z / 4);
+            }
             this.minSpawnDelay = minSpawnDelay;
             this.maxSpawnDelay = maxSpawnDelay;
             this.maxCars = maxCars;
@@ -50,7 +58,7 @@ public class Spawner : MonoBehaviour
                 if (elapsedTime >= spawnDelay)
                 {
                     elapsedTime = 0;
-                    GameObject carGameObject = Instantiate(Car, spawnPoint, Quaternion.AngleAxis(90 * direction, Vector3.up));
+                    GameObject carGameObject = Instantiate(Car, spawnPoint, Quaternion.AngleAxis(90 + 180 * direction, Vector3.up));
                     carGameObject.transform.parent = parent.transform;
                     Car car = carGameObject.GetComponent<Car>();
                     car.destination = destination;

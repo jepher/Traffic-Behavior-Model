@@ -3,9 +3,8 @@ using Trees.Base;
 
 namespace Trees
 {
-    public class LightStateNode : DecoratorNode
-    {
-        public enum Color
+    public class LightStateNode : ActionNode
+    {        public enum Color
         {
             Red = 0,
             Yellow,
@@ -14,18 +13,26 @@ namespace Trees
 
         public Color color;
 
-        public override bool Branch(Data data)
+        public override TreeResult Exec(Data data)
         {
+            bool comparison = false;
             switch (color)
             {
                 case Color.Red:
-                    return data.light.currentState.Equals("RED");
+                    comparison = data.light.light.currentState.Equals("RED");
+                    break;
                 case Color.Yellow:
-                    return data.light.currentState.Equals("YELLOW");
+                    comparison = data.light.light.currentState.Equals("YELLOW");
+                    break;
                 case Color.Green:
-                    return data.light.currentState.Equals("GREEN");
+                    comparison = data.light.light.currentState.Equals("GREEN");
+                    break;
             }
-            return false;
+
+            if (comparison)
+                return TreeResult.Success;
+            else
+                return TreeResult.Failure;
         }
     }
 }

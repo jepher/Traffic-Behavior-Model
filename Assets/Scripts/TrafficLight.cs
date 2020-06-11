@@ -9,7 +9,6 @@ public class TrafficLight : MonoBehaviour
     //Function to change color
     Renderer rend;
     public string currentState;
-    public float gap;
 
     private void Start()
     {
@@ -31,5 +30,4 @@ public class TrafficLight : MonoBehaviour
                 break;
         }
     }
-    //keep track of state
 }

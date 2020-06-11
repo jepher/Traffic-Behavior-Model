@@ -14,8 +14,11 @@ namespace Trees
 
         public override TreeResult Exec(Data data)
         {
-            if(data.follower.logging)
+            if (data.driver.logging)
+            {
                 Debug.Log(message);
+                Debug.Break();
+            }
             var next = GetNext();
             if (next != null)
             {

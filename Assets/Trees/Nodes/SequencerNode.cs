@@ -5,8 +5,8 @@ namespace Trees
 {
     public class SequencerNode : Base.TreeNode
     {
-        [Input] TreeKnobEmpty inputKnob;
-        [Output] TreeKnobEmpty outpuKnob;
+        [Input] public TreeKnobEmpty inputKnob;
+        [Output(dynamicPortList = true)] public TreeKnobEmpty[] outputKnob;
 
         protected List<Base.TreeNode> TreeNodeList;
 
@@ -18,19 +18,20 @@ namespace Trees
         protected override void Init()
         {
             base.Init();
-
             TreeNodeList.Clear();
-            Base.TreeNode TreeNode = null;
-            foreach (var port in Outputs) {
-                if (port.IsConnected) {
-                    int cnt = port.ConnectionCount;
-                    for (int i = 0; i < cnt; ++i) {
-                        var p = port.GetConnection(i);
-                        if (p != null) {
-                            TreeNode = p.node as Base.TreeNode;
-                            if (TreeNode != null) {
-                                TreeNodeList.Add(TreeNode);
-                            }
+            Base.TreeNode node = null;
+            for (int i = 0; i < outputKnob.Length; i++)
+            {
+                var port = GetPort("outputKnob " + i);
+                if (port.IsConnected)
+                {
+                    var p = port.Connection;
+                    if (p != null)
+                    {
+                        node = p.node as Base.TreeNode;
+                        if (node != null)
+                        {
+                            TreeNodeList.Add(node);
                         }
                     }
                 }

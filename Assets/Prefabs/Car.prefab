@@ -123,11 +123,11 @@ MonoBehaviour:
   reaction_delay: 1
   b: 0.2
   gap_desired: 0
-  gap_light_safe: 20
   stop_gap: 5
   intersection_width: 20
   reaction_distance: 40
-  decisionTree: {fileID: 11400000, guid: 68804d0f6d2cb7b478742c8eb598dff8, type: 2}
-  behaviorTree: {fileID: 11400000, guid: d2245cac038e9b14392bad1e7c8659a0, type: 2}
+  stoppable_distance: 0
+  behaviorTree: {fileID: 11400000, guid: f10c972cba9c33545b0bcd9ddb2f84f8, type: 2}
+  carBlocking: 0
   destination: {x: 0, y: 0, z: 0}
   reachedDestination: 0
